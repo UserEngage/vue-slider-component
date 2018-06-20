@@ -137,6 +137,8 @@ import vueSlider from 'vue-slider-component/src/vue2-slider.vue'
 | value       | Number, String, Array, Object  | 0        | Initial value (if the value for the array open range model) |
 | data        | Array         | null     | The custom data. |
 | clickable   | Boolean       | true     | Whether or not the slider is clickable as well as drag-able |
+| tooltip-merge* | Boolean       | true    | Whether to merge with tooltip overlap |
+| merge-formatter* | String,Function       | null    | Formatting of the merged value, for example: `merge-formatter="¥{value1} ~ ¥{value2}"` or `` merge-formatter: (v1, v2) => `¥${v1} ~ ¥${v2}` ``. |
 | stop-propagation*  | Boolean       | false    | All events call `stopPropagation` |
 | real-time*  | Boolean       | false    | Whether the real-time computing the layout of the components |
 | lazy*       | Boolean       | false    | At the end of the drag and drop, to synchronization value (if each update to high consumption of operation (such as Ajax), it is more useful) [Example](https://nightcatsama.github.io/vue-slider-component/example/#demo1) |
@@ -160,7 +162,7 @@ prop*: [only supported in vue2]
 ### Function
 | Name        | Type           | Description                |
 | ----------- |:---------------| ---------------------------|
-| setValue    | Params: value [, noCallback] | set value of the component |
+| setValue    | Params: value [, noCallback: boolean, speed: number] | set value of the component |
 | setIndex    | Params: index* | set index of the component |
 | getValue    | Return: value  | get value of the component |
 | getIndex    | Return: index* | get index of the component |
@@ -172,7 +174,7 @@ prop*: [only supported in vue2]
 ### Events
 | Name          | Type          | Description  |
 | --------------|:--------------|--------------|
-| callback      | Params: value[Number]  | values change when the callback function |
+| callback      | Params: value[Number]  | values change when the callback function. (Changes in the direct assignment value will not trigger the callback, it is recommended to use `setValue` method) |
 | drag-start    | Params: context[Object]| Drag the start event |
 | drag-end      | Params: context[Object]| Drag the end event |
 

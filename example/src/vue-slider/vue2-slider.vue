@@ -10,6 +10,7 @@
       <template v-if="isRange">
         <div
           ref="dot0"
+          key="dot0"
           :class="[
             tooltipStatus, 
             'vue-slider-dot', 
@@ -26,14 +27,15 @@
           @mousedown="moveStart($event, 0)"
           @touchstart="moveStart($event, 0)"
         >
-          <span :class="['vue-slider-tooltip-' + tooltipDirection[0], 'vue-slider-tooltip-wrap']">
+          <div ref="tooltip0" :class="['vue-slider-tooltip-' + tooltipDirection[0], 'vue-slider-tooltip-wrap']">
             <slot name="tooltip" :value="val[0]" :index="0">
               <span class="vue-slider-tooltip" :style="tooltipStyles[0]">{{ formatter ? formatting(val[0]) : val[0] }}</span>
             </slot>
-          </span>
+          </div>
         </div>
         <div
           ref="dot1"
+          key="dot1"
           :class="[
             tooltipStatus, 
             'vue-slider-dot', 
@@ -50,16 +52,17 @@
           @mousedown="moveStart($event, 1)"
           @touchstart="moveStart($event, 1)"
         >
-          <span :class="['vue-slider-tooltip-' + tooltipDirection[1], 'vue-slider-tooltip-wrap']">
+          <div ref="tooltip1" :class="['vue-slider-tooltip-' + tooltipDirection[1], 'vue-slider-tooltip-wrap']">
             <slot name="tooltip" :value="val[1]" :index="1">
               <span class="vue-slider-tooltip" :style="tooltipStyles[1]">{{ formatter ? formatting(val[1]) : val[1] }}</span>
             </slot>
-          </span>
+          </div>
         </div>
       </template>
       <template v-else>
         <div
           ref="dot"
+          key="dot"
           :class="[
             tooltipStatus, 
             'vue-slider-dot', 
@@ -76,11 +79,11 @@
           @mousedown="moveStart"
           @touchstart="moveStart"
         >
-          <span :class="['vue-slider-tooltip-' + tooltipDirection, 'vue-slider-tooltip-wrap']">
+          <div :class="['vue-slider-tooltip-' + tooltipDirection, 'vue-slider-tooltip-wrap']">
             <slot name="tooltip" :value="val">
               <span class="vue-slider-tooltip" :style="tooltipStyles">{{ formatter ? formatting(val) : val }}</span>
             </slot>
-          </span>
+          </div>
         </div>
       </template>
       <ul class="vue-slider-piecewise">
@@ -119,15 +122,23 @@
         </li>
       </ul>
       <div 
-        ref="process" 
+        ref="process"
         :class="['vue-slider-process', { 'vue-slider-process-dragable': isRange && processDragable }]" 
         :style="processStyle"
         @click="processClick"
         @mousedown="moveStart($event, 0, true)"
         @touchstart="moveStart($event, 0, true)"
-      ></div>
+      >
+      <div ref="mergedTooltip" class="vue-merged-tooltip" :class="['vue-slider-tooltip-' + tooltipDirection[0], 'vue-slider-tooltip-wrap']" :style="tooltipMergedPosition">
+          <slot name="tooltip">
+            <span class="vue-slider-tooltip" :style="tooltipStyles">
+              {{ mergeFormatter ? mergeFormatting(val[0], val[1]) : (formatter ? `${formatting(val[0])} - ${formatting(val[1])}` : `${val[0]} - ${val[1]}`) }}
+            </span>
+          </slot>
+      </div>
     </div>
     <input v-if="!isRange && !data" class="vue-slider-sr-only" type="range" v-model="val" :min="min" :max="max" />
+    </div>
   </div>
 </template>
 <script>
@@ -254,10 +265,15 @@
           return [(i) => i - 1, (i) => i + 1]
         }
       },
+      tooltipMerge: {
+        type: Boolean,
+        default: true
+      },
       sliderStyle: [Array, Object, Function],
       focusStyle: [Array, Object, Function],
       tooltipDir: [Array, String],
       formatter: [String, Function],
+      mergeFormatter: [String, Function],
       piecewiseStyle: Object,
       piecewiseActiveStyle: Object,
       processStyle: Object,
@@ -278,7 +294,8 @@
         focusSlider: 0,
         currentValue: 0,
         currentSlider: 0,
-        isComponentExists: true
+        isComponentExists: true,
+        isMounted: false
       }
     },
     computed: {
@@ -290,6 +307,25 @@
       },
       flowDirection () {
         return `vue-slider-${this.direction + (this.reverse ? '-reverse' : '')}`
+      },
+      tooltipMergedPosition () {
+        if (!this.isMounted) return {}
+
+        const tooltipDirection = this.tooltipDirection[0]
+        const dot0 = this.$refs.dot0
+
+        if (dot0) {
+          if (this.direction === 'vertical') {
+            const style = {}
+            style[tooltipDirection] = `-${(this.dotHeightVal / 2) - (this.width / 2) + 9}px`
+            return style
+          } else {
+            const style = {}
+            style[tooltipDirection] = `-${(this.dotWidthVal / 2) - (this.height / 2) + 9}px`
+            style['left'] = `50%`
+            return style
+          }
+        }
       },
       tooltipDirection () {
         let dir = this.tooltipDir || (this.direction === 'vertical' ? 'left' : 'top')
@@ -530,6 +566,11 @@
         document.addEventListener('keydown', this.handleKeydown)
         document.addEventListener('keyup', this.handleKeyup)
         window.addEventListener('resize', this.refresh)
+
+        if (this.isRange && this.tooltipMerge) {
+          this.$refs.dot0.addEventListener('transitionend', this.handleOverlapTooltip)
+          this.$refs.dot1.addEventListener('transitionend', this.handleOverlapTooltip)
+        }
       },
       unbindEvents () {
         document.removeEventListener('touchmove', this.moving)
@@ -541,6 +582,11 @@
         document.removeEventListener('keydown', this.handleKeydown)
         document.removeEventListener('keyup', this.handleKeyup)
         window.removeEventListener('resize', this.refresh)
+
+        if (this.isRange && this.tooltipMerge) {
+          this.$refs.dot0.removeEventListener('transitionend', this.handleOverlapTooltip)
+          this.$refs.dot1.removeEventListener('transitionend', this.handleOverlapTooltip)
+        }
       },
       handleKeydown (e) {
         if (!this.useKeyboard || !this.focusFlag) {
@@ -574,7 +620,7 @@
           let arr = this.currentIndex.map((index, i) => {
             if (i === this.focusSlider || this.fixed) {
               let val = fn(index)
-              let range = this.fixed ? this.valueLimit[i] : [this.minimum, this.maximum]
+              let range = this.fixed ? this.valueLimit[i] : [0, this.total]
               if (val <= range[1] && val >= range[0]) {
                 return val
               }
@@ -599,6 +645,9 @@
       },
       formatting (value) {
         return typeof this.formatter === 'string' ? this.formatter.replace(/\{value\}/, value) : this.formatter(value)
+      },
+      mergeFormatting (value1, value2) {
+        return typeof this.mergeFormatter === 'string' ? this.mergeFormatter.replace(/\{(value1|value2)\}/g, (_, key) => key === 'value1' ? value1 : value2) : this.mergeFormatter(value1, value2)
       },
       getPos (e) {
         this.realTime && this.getStaticData()
@@ -661,6 +710,10 @@
           this.setValueOnPos(this.processSign.pos[1] + this.getPos(e) - this.processSign.start, true)
         } else {
           this.setValueOnPos(this.getPos(e), true)
+        }
+
+        if (this.isRange && this.tooltipMerge) {
+          this.handleOverlapTooltip()
         }
       },
       moveEnd (e) {
@@ -744,7 +797,7 @@
         return ((this.spacing * this.multiple) * index + (this.minimum * this.multiple)) / this.multiple
       },
       getIndexByValue (value) {
-        return ((value - this.minimum) * this.multiple) / (this.spacing * this.multiple)
+        return Math.round((value - this.minimum) * this.multiple) / (this.spacing * this.multiple)
       },
       setIndex (val) {
         if (Array.isArray(val) && this.isRange) {
@@ -889,6 +942,44 @@
         if (this.debug) {
           console.error(`[VueSlider error]: ${msg}`)
         }
+      },
+      handleOverlapTooltip () {
+        const isDirectionSame = this.tooltipDirection[0] === this.tooltipDirection[1]
+
+        if (this.isRange && isDirectionSame) {
+          const tooltip0 = this.$refs.tooltip0
+          const tooltip1 = this.$refs.tooltip1
+
+          const tooltip0Right = tooltip0.getBoundingClientRect().right
+          const tooltip1Left = tooltip1.getBoundingClientRect().left
+
+          const tooltip0Y = tooltip0.getBoundingClientRect().y
+          const tooltip1Y = tooltip1.getBoundingClientRect().y + tooltip1.getBoundingClientRect().height
+
+          const horizontalOverlap = this.direction === 'horizontal' && tooltip0Right > tooltip1Left
+          const verticalOverlap = this.direction === 'vertical' && tooltip1Y > tooltip0Y
+
+          if (horizontalOverlap || verticalOverlap) {
+            this.handleDisplayMergedTooltip(true)
+          } else {
+            this.handleDisplayMergedTooltip(false)
+          }
+        }
+      },
+      handleDisplayMergedTooltip (show) {
+        const tooltip0 = this.$refs.tooltip0
+        const tooltip1 = this.$refs.tooltip1
+        const mergedTooltip = this.$refs.process.getElementsByClassName('vue-merged-tooltip')[0]
+
+        if (show) {
+          tooltip0.style.visibility = 'hidden'
+          tooltip1.style.visibility = 'hidden'
+          mergedTooltip.style.visibility = 'visible'
+        } else {
+          tooltip0.style.visibility = 'visible'
+          tooltip1.style.visibility = 'visible'
+          mergedTooltip.style.visibility = 'hidden'
+        }
       }
     },
     mounted () {
@@ -905,6 +996,8 @@
           this.bindEvents()
         }
       })
+
+      this.isMounted = true
     },
     beforeDestroy () {
       this.isComponentExists = false
@@ -1049,7 +1142,8 @@
     right: -9px;
     transform: translate(100%, -50%);
   }
-  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-top .vue-slider-tooltip::before {
+  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-top .vue-slider-tooltip::before,
+  .vue-slider-component .vue-slider-tooltip-top .vue-merged-tooltip .vue-slider-tooltip::before {
     content: '';
     position: absolute;
     bottom: -10px;
@@ -1061,7 +1155,12 @@
     border-top-color: inherit;
     transform: translate(-50%, 0);
   }
-  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-bottom .vue-slider-tooltip::before {
+  .vue-slider-component .vue-slider-tooltip-wrap.vue-merged-tooltip {
+    display: block;
+    visibility: hidden;
+  }
+  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-bottom .vue-slider-tooltip::before,
+  .vue-slider-component .vue-slider-tooltip-bottom .vue-merged-tooltip .vue-slider-tooltip::before {
     content: '';
     position: absolute;
     top: -10px;
@@ -1073,7 +1172,8 @@
     border-bottom-color: inherit;
     transform: translate(-50%, 0);
   }
-  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-left .vue-slider-tooltip::before {
+  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-left .vue-slider-tooltip::before,
+  .vue-slider-component .vue-slider-tooltip-left .vue-merged-tooltip .vue-slider-tooltip::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -1085,7 +1185,8 @@
     border-left-color: inherit;
     transform: translate(0, -50%);
   }
-  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-right .vue-slider-tooltip::before {
+  .vue-slider-component .vue-slider-tooltip-wrap.vue-slider-tooltip-right .vue-slider-tooltip::before,
+  .vue-slider-component .vue-slider-tooltip-right .vue-merged-tooltip .vue-slider-tooltip::before {
     content: '';
     position: absolute;
     top: 50%;
