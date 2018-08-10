@@ -3,7 +3,7 @@
     <h1>Example</h1>
     <section data-title="Default" id="demo">
       <div>
-        <vue-slider ref="slider" v-bind="demo.default" v-model="demo.default.value"></vue-slider>
+        <vue-slider ref="slider" v-model="demo.default.customProp.value" v-bind="demo.default"></vue-slider>
         <h3><small>Value: </small>{{ demo.default.value }}</h3>
       </div>
       <div>
@@ -228,7 +228,10 @@ export default {
       orange_cat: 'http://7xqnme.com1.z0.glb.clouddn.com/17-6-8/88421800.jpg',
       demo: {
         default: {
-          value: 0,
+          customProp: {
+            value: 2
+          },
+          // value: void 0,
           width: 'auto',
           height: 6,
           direction: 'horizontal',
@@ -237,7 +240,8 @@ export default {
           min: 0,
           max: 100,
           interval: 1,
-          debug: process && process.env && process.env.NODE_ENV !== 'production',
+          tooltipMerge: true,
+          // debug: process && process.env && process.env.NODE_ENV !== 'production',
           disabled: false,
           show: true,
           realTime: false,
@@ -249,13 +253,13 @@ export default {
           useKeyboard: false,
           reverse: false,
           speed: 0.5,
-          formatter: null,
           focusStyle: null,
           bgStyle: null,
           sliderStyle: null,
           tooltipStyle: null,
           processStyle: null,
-          piecewiseStyle: null
+          piecewiseStyle: null,
+          disabledStyle: null
         },
         demo1: {
           value: 1,
@@ -317,7 +321,7 @@ export default {
           useKeyboard: true,
           tooltip: 'always',
           formatter: '¥{value}',
-          overlapFormatter: '¥{value1} ~ ¥{value2}',
+          mergeFormatter: '¥{value1} ~ ¥{value2}',
           bgStyle: {
             backgroundColor: '#fff',
             boxShadow: 'inset 0.5px 0.5px 3px 1px rgba(0,0,0,.36)'
@@ -431,7 +435,7 @@ export default {
           min: 0,
           max: 100,
           disabled: false,
-          tooltipOverlap: false,
+          tooltipMerge: false,
           tooltip: 'always'
         },
         demo8: {
@@ -482,6 +486,7 @@ export default {
           sliderStyle: '滑块样式',
           bgStyle: '组件背景样式',
           piecewiseStyle: '分割点的样式',
+          disabledStyle: '组件禁用状态下样式',
           focusStyle: '键盘控制时，算滑块获得焦点时样式',
           value: '值'
         }
